@@ -31,7 +31,7 @@ npm install
 **3. Configure Environment Variables**
 Create a .env file in the root of the project directory and add your configuration:
 
-```bash
+```env
 # Scanner Configuration
 SCANNER_IP="192.168.0.111"
 SCANNER_PORT="4371"
@@ -55,22 +55,63 @@ node bridge.js
 
 _(Press Ctrl + C to stop the script)._
 
-**Option B: Production (Always-On Background Process)**
+**Option B: Production (Always-On Background Process via Windows Task Scheduler)**
+To ensure this script runs continuously on Windows—even after you log out of the IT Admin user account—we use a combination of a native Windows Batch Script and Task Scheduler.
+
+1. **Create the Batch File:**
+   In the root of the project folder (`C:\Users\IT Admin\Documents\vigilance-bridge`), create a file named `start-bridge.bat` and paste the following:
+
+   ```batch
+   @echo off
+   :: Navigate to your project folder
+   cd /d "C:\Users\IT Admin\Documents\vigilance-bridge"
+
+   echo --- Bridge Started at %date% %time% --- >> output.log
+
+   :loop
+   :: Run the script and pipe all terminal text and errors into output.log
+   node bridge.js >> output.log 2>&1
+
+   :: If the script ever crashes or exits, the batch file will catch it here
+   echo ❌ Script crashed or stopped. Restarting in 5 seconds... >> output.log
+   timeout /t 5 > nul
+   goto loop
+   ```
+
+2. **Configure Windows Task Scheduler:**
+   - Press `Win + R`, type `taskschd.msc`, and hit `Enter`.
+   - Click `Create Task...` (on the right-hand Actions panel).
+   - General Tab:
+      - `Name: Vigilance Supabase Bridge`.
+      - Select `Run whether user is logged on or not` (Crucial for surviving logouts).
+      - Check `Run with highest privileges`.
+   - Triggers Tab: Click `New...` -> `Set Begin the task to At startup`.
+   - Actions Tab: Click `New...` -> `Set Action to Start a program`.
+      - Browse to your `start-bridge.bat` file.
+      - In the Start in (optional) field, paste: (`C:\Users\IT Admin\Documents\vigilance-bridge`) (No quotes here).
+   - Conditions Tab: Uncheck `Start the task only if the computer is on AC power`.
+   - Click `OK` and enter your Windows administrator password when prompted.
+
+**Option C: Production (Always-On Background Process)**
 To run this continuously on a dedicated PC, we use PM2, a production process manager for Node.js. It runs the script invisibly in the background and automatically restarts it if it crashes.
 
-1. Install PM2 globally:
+1. Open Git Bash as 
+
+2. Navigate to `vigilance-bridge` folder
+
+3. Install PM2 globally:
 
    ```bash
    npm install -g pm2
    ```
 
-2. Start the bridge process in terminal:
+4. Start the bridge process in terminal:
 
    ```bash
    pm2 start bridge.js --name "vigilance-bridge"
    ```
 
-3. Save PM2 processes (Optional but recommended):
+5. Save PM2 processes (Optional but recommended):
    To ensure PM2 automatically starts the script if the Windows PC restarts, install the PM2 Windows startup package:
 
    ```bash
@@ -83,10 +124,13 @@ To run this continuously on a dedicated PC, we use PM2, a production process man
 
 Once the script is running via PM2, you can manage it using the following terminal commands:
 
+- Monitor: `pm2 monit`
+- List: `pm2 list`
 - View live logs:`pm2 logs vigilance-bridge`
 - Check status: `pm2 status`
-- Stop the script: `pm2 stop vigilance-bridge`
-- Restart the script: `pm2 restart vigilance-bridge`
+- Stop: `pm2 stop vigilance-bridge`
+- Restart: `pm2 restart vigilance-bridge`
+- Delete: `pm2 delete vigilance-bridge` OR `pm2 delete 0 1` to delete based on ID
 
 ## How it Works
 
@@ -97,3 +141,8 @@ Once the script is running via PM2, you can manage it using the following termin
    - Deduplicates overlapping scanner hits in-memory using a unique compound key..
 4. Push: Upserts the clean, unique data to the attendance_logs table in Supabase.
 5. Loop: Waits for the defined POLLING_INTERVAL_MS (e.g., 60 seconds) and repeats.
+
+---
+
+## ⚠️ Legacy OS & Node 16 Compatibility Note
+Windows 8.1 enforces a maximum capability of **Node.js v16**. Because modern versions of `@supabase/supabase-js` require Node 18+ web standards (like global `fetch` and native `WebSockets`), this codebase explicitly injects `node-fetch` and `ws` directly into the global environment at the top of `bridge.js` to maintain background runtime stability. Do not remove these dependencies.

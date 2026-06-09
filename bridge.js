@@ -1,6 +1,19 @@
 import dotenv from "dotenv";
 dotenv.config(); // 1. This must be the absolute first line of code
 
+// --- WINDOWS 8.1 / NODE 16 PATCH ---
+// This safely forces the missing Fetch/Headers and WebSocket APIs into Node 16 globals
+import fetch, { Headers, Request, Response } from "node-fetch";
+if (!globalThis.fetch) {
+  globalThis.fetch = fetch;
+  globalThis.Headers = Headers;
+  globalThis.Request = Request;
+  globalThis.Response = Response;
+}
+
+import ws from "ws"; // Explicitly import the WebSocket package for Node 16
+// ------------------------------------
+
 import ZKLib from "node-zklib";
 import { createClient } from "@supabase/supabase-js";
 
@@ -12,7 +25,14 @@ const LOCATION_NAME = process.env.LOCATION_NAME;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Uncomment this if not using Windows 8.1 / Node 16
+// const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- WINDOWS 8.1 / NODE 16 PATCH ---
+// Pass the custom WebSocket transport configuration into Supabase here
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: { transport: ws },
+});
 // -------------------------------
 
 async function syncAttendance() {

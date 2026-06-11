@@ -72,7 +72,8 @@ const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/1 * * * *"; // Default: ev
 // Realtime WebSocket is not needed for a write-only sync job.
 // Using a plain client avoids the unnecessary WS connection overhead.
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: false }, // Stateless — no session file on disk
+  // auth: { persistSession: false }, // Stateless — no session file on disk
+  realtime: {transport: ws },
 });
 
 // ─── DISCORD NOTIFICATION ───────────────────────────────────────────────────
